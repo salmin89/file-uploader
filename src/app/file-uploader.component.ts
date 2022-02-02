@@ -27,9 +27,10 @@ import {
   tap,
   startWith,
   take,
-  merge,
   race,
   raceWith,
+  debounceTime,
+  withLatestFrom,
 } from 'rxjs/operators';
 
 export type IVerifiedFile = Omit<IUploadedFile, 'error'>;
@@ -83,9 +84,7 @@ export class FileUploaderComponent {
     this.uploadedFiles$.pipe(startWith(null)),
     this.removed$.pipe(startWith(null)),
   ]).pipe(
-    map(([upload, remove]) => {
-      return !!upload || !!remove;
-    }),
+    map(([upload, remove]) => !!upload || !!remove),
     filter((updates) => updates)
   );
 
@@ -100,10 +99,13 @@ export class FileUploaderComponent {
       this.initialFilesChanges$.next(this.initialValues);
     }
 
-    combineLatest([this.files$, this.updates$])
+    this.updates$
       .pipe(
         takeUntil(this.unsubscribe),
-        map(([uploadedFiles]) => uploadedFiles.filter((files) => !files.error))
+        withLatestFrom(this.files$),
+        map(([x, uploadedFiles]) =>
+          uploadedFiles.filter((files) => !files.error)
+        )
       )
       .subscribe((result) => this.onFileChanges.emit(result));
   }
