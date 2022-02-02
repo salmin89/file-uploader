@@ -1,8 +1,10 @@
 import {
   Component,
+  ElementRef,
   EventEmitter,
   Input,
   Output,
+  SimpleChanges,
   ViewChild,
 } from '@angular/core';
 import {
@@ -11,8 +13,8 @@ import {
   Observable,
   Observer,
   of,
-  Subscription,
   BehaviorSubject,
+  Subject,
 } from 'rxjs';
 import {
   catchError,
@@ -21,6 +23,8 @@ import {
   switchMap,
   takeUntil,
   shareReplay,
+  tap,
+  startWith,
 } from 'rxjs/operators';
 
 export type IVerifiedFile = Omit<IUploadedFile, 'error'>;
@@ -41,6 +45,8 @@ export interface IUploadError {
   templateUrl: './file-uploader.component.html',
 })
 export class FileUploaderComponent {
+  @ViewChild('fileInput') fileInputRef: ElementRef<HTMLInputElement>;
+
   @Input() fileSizeLimit: number;
   @Input() multiple: boolean = true;
   @Input() accept: string;
@@ -48,54 +54,50 @@ export class FileUploaderComponent {
 
   @Input() initialValues: IUploadedFile[];
 
+  initialFilesChanges$ = new BehaviorSubject<IUploadedFile[]>([]);
+  uploadedFiles$ = new BehaviorSubject<IUploadedFile[]>([]);
+  removed$ = new BehaviorSubject<IUploadedFile[]>([]);
+
   @Output() onFileChanges = new EventEmitter<IVerifiedFile[]>();
 
-  @ViewChild('fileInput') fileInputRef;
+  files$: Observable<IUploadedFile[]> = combineLatest([
+    this.initialFilesChanges$,
+    this.uploadedFiles$,
+    this.removed$,
+  ]).pipe(
+    map(([initialFiles, uploadedFiles, removedFiles]) => {
+      const filesource =
+        uploadedFiles.length === 0 ? initialFiles : uploadedFiles;
 
-  files$: Observable<IUploadedFile[]>;
-  removed$ = new BehaviorSubject([]);
+      return filesource.filter((file) => !removedFiles.find((r) => r === file));
+    }),
+    shareReplay()
+  );
 
-  constructor() {}
-
-  subscription: Subscription;
+  unsubscribe = new Subject<void>();
   ngOnDestroy(): void {
-    this.subscription.unsubscribe();
+    this.unsubscribe.next();
+    this.unsubscribe.complete();
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes.initialValues) {
+      this.initialFilesChanges$.next(changes.initialValues.currentValue);
+    }
   }
 
   ngAfterViewInit() {
-    const fileChanges$ = fromEvent(
-      this.fileInputRef.nativeElement,
-      'change'
-    ).pipe(
-      map((event: any) => event?.target?.files),
-      filter((files: FileList) => files.length > 0),
-      switchMap((files) => {
-        const validatedFiles: Observable<IUploadedFile>[] = [];
-
-        for (const file of Object.values(files)) {
-          validatedFiles.push(
-            this.validateFile(file).pipe(
-              catchError((error: IUploadedFile) => of(error))
-            )
-          );
-        }
-        return combineLatest(validatedFiles);
-      }),
-      shareReplay()
-    );
-
-    this.files$ = combineLatest([fileChanges$, this.removed$]).pipe(
-      map(([fileChanges, removedFiles]) => {
-        return fileChanges.filter(
-          (file) => !removedFiles.find((r) => r === file)
-        );
-      }),
-      shareReplay()
-    );
-
-    // Filter out error values before emit
-    this.subscription = this.files$
+    fromEvent(this.fileInputRef.nativeElement, 'change')
       .pipe(
+        takeUntil(this.unsubscribe),
+        map((event) => (<HTMLInputElement>event.target).files),
+        switchMap(this.validateFiles)
+      )
+      .subscribe((files: IUploadedFile[]) => this.uploadedFiles$.next(files));
+
+    this.files$
+      .pipe(
+        takeUntil(this.unsubscribe),
         map((uploadedFiles: IUploadedFile[]) =>
           uploadedFiles.filter((files) => !files.error)
         )
@@ -104,6 +106,19 @@ export class FileUploaderComponent {
         this.onFileChanges.emit(result);
       });
   }
+
+  private validateFiles = (files: FileList): Observable<IUploadedFile[]> => {
+    const validatedFiles: Observable<IUploadedFile>[] = [];
+
+    for (const file of Object.values(files)) {
+      validatedFiles.push(
+        this.validateFile(file).pipe(
+          catchError((error: IUploadedFile) => of(error))
+        )
+      );
+    }
+    return combineLatest(validatedFiles);
+  };
 
   private validateFile(file: File): Observable<IUploadedFile> {
     const fileReader = new FileReader();
@@ -160,7 +175,7 @@ export class FileUploaderComponent {
       observer.error({ error: { name, errorMessage: 'INVALID_SIZE' } });
   }
 
-  public remove(file) {
+  public remove(file: IUploadedFile) {
     this.removed$.next([...this.removed$.value, file]);
   }
 

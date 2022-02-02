@@ -17,7 +17,7 @@
     hidden
   />
 
-  <ng-container *ngIf="files$ | async as files; else initialTemplate">
+  <ng-container *ngIf="files$ | async as files">
     <div class="file-uploader__files">
       <div
         class="file-uploader__wrap"
@@ -45,27 +45,6 @@
     </div>
   </ng-container>
 </div>
-
-<ng-template #initialTemplate>
-  <div class="file-uploader__files" *ngIf="initialValues as files">
-    <div class="file-uploader__wrap" *ngFor="let file of files; let i = index">
-      <ng-container
-        *ngTemplateOutlet="
-          file.image ? imageTemplate : fileTemplate;
-          context: { $implicit: file, index: i }
-        "
-      >
-      </ng-container>
-      <div
-        *ngIf="!disabled"
-        class="file-uploader__remove"
-        (click)="removeInitial(file)"
-      >
-        Remove
-      </div>
-    </div>
-  </div>
-</ng-template>
 
 <ng-template #errorTemplate let-uploadedFile let-index="index">
   <div class="file-uploader__error" id="error-{{ index }}">

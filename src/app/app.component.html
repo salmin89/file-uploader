@@ -1,1 +1,16 @@
-<it-file-uploader></it-file-uploader>
+<h4>Empty</h4>
+<it-file-uploader
+  accept="image/*"
+  [fileSizeLimit]="51200"
+  [multiple]="true"
+></it-file-uploader>
+
+<hr />
+
+<h4>Initial</h4>
+<it-file-uploader
+  [initialValues]="[{ image: { src: initialImage } }]"
+  accept="image/*"
+  [fileSizeLimit]="51200"
+  [multiple]="true"
+></it-file-uploader>

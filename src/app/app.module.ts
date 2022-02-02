@@ -3,7 +3,7 @@ import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 
 import { AppComponent } from './app.component';
-import { FileUploaderComponent } from './hello.component';
+import { FileUploaderComponent } from './file-uploader.component';
 
 @NgModule({
   imports: [BrowserModule, FormsModule],
