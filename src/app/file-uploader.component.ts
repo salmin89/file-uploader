@@ -15,6 +15,7 @@ import {
   of,
   BehaviorSubject,
   Subject,
+  ReplaySubject,
 } from 'rxjs';
 import {
   catchError,
@@ -25,6 +26,10 @@ import {
   shareReplay,
   tap,
   startWith,
+  take,
+  merge,
+  race,
+  raceWith,
 } from 'rxjs/operators';
 
 export type IVerifiedFile = Omit<IUploadedFile, 'error'>;
@@ -54,24 +59,34 @@ export class FileUploaderComponent {
 
   @Input() initialValues: IUploadedFile[];
 
-  initialFilesChanges$ = new BehaviorSubject<IUploadedFile[]>([]);
-  uploadedFiles$ = new BehaviorSubject<IUploadedFile[]>([]);
-  removed$ = new BehaviorSubject<IUploadedFile[]>([]);
+  initialFilesChanges$ = new ReplaySubject<IUploadedFile[]>();
+  uploadedFiles$ = new ReplaySubject<IUploadedFile[]>();
+  removed$ = new ReplaySubject<IUploadedFile>();
 
   @Output() onFileChanges = new EventEmitter<IVerifiedFile[]>();
 
   files$: Observable<IUploadedFile[]> = combineLatest([
-    this.initialFilesChanges$,
-    this.uploadedFiles$,
-    this.removed$,
+    this.initialFilesChanges$.pipe(startWith([])),
+    this.uploadedFiles$.pipe(startWith([])),
+    this.removed$.pipe(startWith(null)),
   ]).pipe(
-    map(([initialFiles, uploadedFiles, removedFiles]) => {
+    map(([initialFiles, uploadedFiles, removedFile]) => {
       const filesource =
         uploadedFiles.length === 0 ? initialFiles : uploadedFiles;
 
-      return filesource.filter((file) => !removedFiles.find((r) => r === file));
+      return filesource.filter((file) => file !== removedFile);
     }),
     shareReplay()
+  );
+
+  updates$ = combineLatest([
+    this.uploadedFiles$.pipe(startWith(null)),
+    this.removed$.pipe(startWith(null)),
+  ]).pipe(
+    map(([upload, remove]) => {
+      return !!upload || !!remove;
+    }),
+    filter((updates) => updates)
   );
 
   unsubscribe = new Subject<void>();
@@ -80,10 +95,17 @@ export class FileUploaderComponent {
     this.unsubscribe.complete();
   }
 
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes.initialValues) {
-      this.initialFilesChanges$.next(changes.initialValues.currentValue);
+  ngOnInit() {
+    if (this.initialValues) {
+      this.initialFilesChanges$.next(this.initialValues);
     }
+
+    combineLatest([this.files$, this.updates$])
+      .pipe(
+        takeUntil(this.unsubscribe),
+        map(([uploadedFiles]) => uploadedFiles.filter((files) => !files.error))
+      )
+      .subscribe((result) => this.onFileChanges.emit(result));
   }
 
   ngAfterViewInit() {
@@ -94,17 +116,6 @@ export class FileUploaderComponent {
         switchMap(this.validateFiles)
       )
       .subscribe((files: IUploadedFile[]) => this.uploadedFiles$.next(files));
-
-    this.files$
-      .pipe(
-        takeUntil(this.unsubscribe),
-        map((uploadedFiles: IUploadedFile[]) =>
-          uploadedFiles.filter((files) => !files.error)
-        )
-      )
-      .subscribe((result) => {
-        this.onFileChanges.emit(result);
-      });
   }
 
   private validateFiles = (files: FileList): Observable<IUploadedFile[]> => {
@@ -128,7 +139,6 @@ export class FileUploaderComponent {
 
       fileReader.readAsDataURL(file);
       fileReader.onload = () => {
-        console.log(fileReader.result);
         this.validateFileType(file, fileReader, observer);
       };
       fileReader.onerror = () => {
@@ -177,7 +187,7 @@ export class FileUploaderComponent {
   }
 
   public remove(file: IUploadedFile) {
-    this.removed$.next([...this.removed$.value, file]);
+    this.removed$.next(file);
   }
 
   public removeInitial(file) {

@@ -15,4 +15,8 @@ export class AppComponent {
   };
 
   initialValues = [this.initialImage];
+
+  onChanges(result) {
+    console.log('changes', result);
+  }
 }

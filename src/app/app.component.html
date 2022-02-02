@@ -3,6 +3,7 @@
   accept="image/*"
   [fileSizeLimit]="51200"
   [multiple]="true"
+  (onFileChanges)="onChanges($event)"
 ></it-file-uploader>
 
 <hr />
@@ -13,4 +14,5 @@
   accept="image/*"
   [fileSizeLimit]="51200"
   [multiple]="true"
+  (onFileChanges)="onChanges($event)"
 ></it-file-uploader>
