@@ -1,23 +1,24 @@
 <div class="file-uploader">
-  <button
-    mat-flat-button
-    color="primary"
-    [disabled]="disabled"
-    (click)="fileInput.click()"
-    id="selectImage"
-  >
-    Upload
-  </button>
-  <input
-    type="file"
-    #fileInput
-    [attr.multiple]="multiple ? true : null"
-    [disabled]="disabled"
-    [attr.accept]="accept"
-    hidden
-  />
-
   <ng-container *ngIf="files$ | async as files">
+    <button
+      mat-flat-button
+      color="primary"
+      [disabled]="disabled"
+      (click)="fileInput.click()"
+      id="selectImage"
+      *ngIf="files.length === 0"
+    >
+      Upload
+    </button>
+    <input
+      type="file"
+      #fileInput
+      [attr.multiple]="multiple ? true : null"
+      [disabled]="disabled"
+      [attr.accept]="accept"
+      hidden
+    />
+
     <div class="file-uploader__files">
       <div
         class="file-uploader__wrap"
