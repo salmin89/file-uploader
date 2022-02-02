@@ -128,6 +128,7 @@ export class FileUploaderComponent {
 
       fileReader.readAsDataURL(file);
       fileReader.onload = () => {
+        console.log(fileReader.result);
         this.validateFileType(file, fileReader, observer);
       };
       fileReader.onerror = () => {
