@@ -31,6 +31,7 @@ import {
   raceWith,
   debounceTime,
   withLatestFrom,
+  distinctUntilChanged,
 } from 'rxjs/operators';
 
 export type IVerifiedFile = Omit<IUploadedFile, 'error'>;
@@ -105,7 +106,8 @@ export class FileUploaderComponent {
         withLatestFrom(this.files$),
         map(([x, uploadedFiles]) =>
           uploadedFiles.filter((files) => !files.error)
-        )
+        ),
+        distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b))
       )
       .subscribe((result) => this.onFileChanges.emit(result));
   }
