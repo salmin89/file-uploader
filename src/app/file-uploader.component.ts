@@ -4,7 +4,6 @@ import {
   EventEmitter,
   Input,
   Output,
-  SimpleChanges,
   ViewChild,
 } from '@angular/core';
 import {
@@ -13,9 +12,9 @@ import {
   Observable,
   Observer,
   of,
-  BehaviorSubject,
   Subject,
   ReplaySubject,
+  BehaviorSubject,
 } from 'rxjs';
 import {
   catchError,
@@ -24,14 +23,11 @@ import {
   switchMap,
   takeUntil,
   shareReplay,
-  tap,
   startWith,
-  take,
-  race,
-  raceWith,
-  debounceTime,
   withLatestFrom,
   distinctUntilChanged,
+  take,
+  scan,
 } from 'rxjs/operators';
 
 export type IVerifiedFile = Omit<IUploadedFile, 'error'>;
@@ -63,29 +59,37 @@ export class FileUploaderComponent {
 
   initialFilesChanges$ = new ReplaySubject<IUploadedFile[]>();
   uploadedFiles$ = new ReplaySubject<IUploadedFile[]>();
-  removed$ = new ReplaySubject<IUploadedFile>();
+  removedChange$ = new ReplaySubject<IUploadedFile>();
+
+  removedFiles$: Observable<IUploadedFile[]> = this.removedChange$.pipe(
+    scan((acc, value) => {
+      acc.push(value);
+      return acc;
+    }, []),
+    shareReplay()
+  );
 
   @Output() onFileChanges = new EventEmitter<IVerifiedFile[]>();
 
   files$: Observable<IUploadedFile[]> = combineLatest([
     this.initialFilesChanges$.pipe(startWith([])),
     this.uploadedFiles$.pipe(startWith([])),
-    this.removed$.pipe(startWith(null)),
+    this.removedFiles$.pipe(startWith([])),
   ]).pipe(
-    map(([initialFiles, uploadedFiles, removedFile]) => {
+    map(([initialFiles, uploadedFiles, removedFiles]) => {
       const filesource =
         uploadedFiles.length === 0 ? initialFiles : uploadedFiles;
 
-      return filesource.filter((file) => file !== removedFile);
+      return filesource.filter((file) => !removedFiles.find((r) => r === file));
     }),
     shareReplay()
   );
 
   updates$ = combineLatest([
-    this.uploadedFiles$.pipe(startWith(null)),
-    this.removed$.pipe(startWith(null)),
+    this.uploadedFiles$.pipe(startWith(0)),
+    this.removedFiles$.pipe(startWith(0)),
   ]).pipe(
-    map(([upload, remove]) => !!upload || !!remove),
+    map(([upload, removedFiles]) => !!upload || !!removedFiles),
     filter((updates) => updates)
   );
 
@@ -191,7 +195,7 @@ export class FileUploaderComponent {
   }
 
   public remove(file: IUploadedFile) {
-    this.removed$.next(file);
+    this.removedChange$.next(file);
   }
 
   public removeInitial(file) {
